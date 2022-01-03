@@ -1,0 +1,241 @@
+#!/usr/bin/env stap
+
+global target_uid = 128
+
+global TYPE_ENTER=0
+global TYPE_EXIT=1
+global TYPE_NON_RETURN=2
+global TYPE_CPU_ON=3
+global TYPE_CPU_OFF=4
+
+global fd_related_syscalls[50]
+global buf_related_syscalls[50]
+global already_include_pathname_syscalls[50]
+// TO-DO: non-return events are skipped. Need to handle if "sys_exit" or "sys_exit_group" evnets are needed
+
+probe begin{
+    fd_related_syscalls["read"]=1
+    fd_related_syscalls["write"]=1
+    fd_related_syscalls["close"]=1
+    fd_related_syscalls["fstat"]=1
+    fd_related_syscalls["lseek"]=1
+    fd_related_syscalls["ioctl"]=1
+    fd_related_syscalls["pread64"]=1
+    fd_related_syscalls["pwrite64"]=1
+    fd_related_syscalls["readv"]=1
+    fd_related_syscalls["writev"]=1
+    fd_related_syscalls["sendmsg"]=1
+    fd_related_syscalls["recvmsg"]=1
+    fd_related_syscalls["setsockopt"]=1
+    fd_related_syscalls["getsockopt"]=1
+    fd_related_syscalls["fcntl"]=1
+    fd_related_syscalls["flock"]=1
+    fd_related_syscalls["fsync"]=1
+    fd_related_syscalls["fdatasync"]=1
+    fd_related_syscalls["ftruncate"]=1
+    fd_related_syscalls["getdents"]=1
+    fd_related_syscalls["fchdir"]=1
+    fd_related_syscalls["fchmod"]=1
+    fd_related_syscalls["fchown"]=1
+    fd_related_syscalls["fstatfs"]=1
+    fd_related_syscalls["readahead"]=1
+    fd_related_syscalls["fsetxattr"]=1
+    fd_related_syscalls["fgetxattr"]=1
+    fd_related_syscalls["flistxattr"]=1
+    fd_related_syscalls["fremovexattr"]=1
+    fd_related_syscalls["getdents64"]=1
+    fd_related_syscalls["fadvise64"]=1
+    fd_related_syscalls["inotify_rm_watch"]=1
+    fd_related_syscalls["sync_file_range"]=1
+    fd_related_syscalls["vmsplice"]=1
+    fd_related_syscalls["fallocate"]=1
+    fd_related_syscalls["yncfs"]=1
+    fd_related_syscalls["sendmmsg"]=1
+    fd_related_syscalls["setns"]=1
+    fd_related_syscalls["finit_module"]=1
+    fd_related_syscalls["preadv2"]=1
+    fd_related_syscalls["pwritev2"]=1
+
+    already_include_pathname_syscalls["open"]=1
+    already_include_pathname_syscalls["stat"]=1
+    already_include_pathname_syscalls["lstat"]=1
+    already_include_pathname_syscalls["access"]=1
+    already_include_pathname_syscalls["execve"]=1
+    already_include_pathname_syscalls["mkdir"]=1
+    already_include_pathname_syscalls["rmdir"]=1
+    already_include_pathname_syscalls["creat"]=1
+    already_include_pathname_syscalls["unlink"]=1
+    already_include_pathname_syscalls["readlink"]=1
+    already_include_pathname_syscalls["chmod"]=1
+    already_include_pathname_syscalls["chown"]=1
+    already_include_pathname_syscalls["lchown"]=1
+    already_include_pathname_syscalls["mknod"]=1
+    already_include_pathname_syscalls["inotify_add_watch"]=2
+    already_include_pathname_syscalls["openat"]=2
+    already_include_pathname_syscalls["mkdirat"]=2
+    already_include_pathname_syscalls["mknodat"]=2
+    already_include_pathname_syscalls["fchownat"]=2
+    already_include_pathname_syscalls["futimesat"]=2
+    already_include_pathname_syscalls["newfstatat"]=2
+    already_include_pathname_syscalls["unlinkat"]=2
+    already_include_pathname_syscalls["readlinkat"]=2
+    already_include_pathname_syscalls["fchmodat"]=2
+    already_include_pathname_syscalls["faccessat"]=2
+    already_include_pathname_syscalls["utimensat"]=2
+    already_include_pathname_syscalls["name_to_handle_at"]=2
+    already_include_pathname_syscalls["stub_execveat"]=2
+    already_include_pathname_syscalls["statx"]=2
+
+    buf_related_syscalls["read"]=1
+    buf_related_syscalls["write"]=1
+    buf_related_syscalls["pread64"]=1
+    buf_related_syscalls["pwrite64"]=1
+
+    system("echo 1 > /tmp/stap_running")
+    system("echo HI STAP")
+}
+
+probe end{
+    system("echo BYE STAP")
+    system("echo 0 > /tmp/stap_running")
+}
+
+
+probe syscall_any {
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_ENTER
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, name)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+probe syscall_any.return{
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_EXIT
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, name)
+
+    print("ㅣ")
+    print(retval)
+
+    print("ㅣ")
+    get_and_print_args(name)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+probe scheduler.cpu_on{
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_CPU_ON
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, "CPU_ON")
+    print("ㅣ")
+    print(idle)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+probe scheduler.cpu_off{
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_CPU_OFF
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, "CPU_OFF")
+    print("ㅣ")
+    print(idle)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+function get_buf_content(buf_ptr){
+    buf_content=""
+    try{
+        buf_content = str_replace(str_replace(text_str(user_string_n(buf_ptr, 256)), "\\", ""), "\"", "")
+    }catch(msg){
+        return ""
+    }
+    return buf_content
+}
+
+function get_path_name(fd, task){
+    try{
+        file = task_fd_lookup(task, fd)
+        fpath = fullpath_struct_file(task, file)
+        if (fpath == "<unknown>"){
+            return "DIFF_MNTNS"
+        }
+        return fpath
+    } catch(msg){
+        return "NULL"
+    }
+}
+
+function get_and_print_resource(){
+    ts = ktime_get_ns()
+    cpu_cycle = get_cycles()
+    retired_instructions = get_retired_instructions()
+    actual_cpu_cycle = get_actual_cycles()
+    uops_loads = get_uops_loads()
+    uops_stores = get_uops_stores()
+
+    rdcas_0 = get_cas_count(0x9f, 0x14, 0x0, 0xA0)
+    rdcas_1 = get_cas_count(0x9f, 0x14, 0x1, 0xA0)
+    rdcas_2 = get_cas_count(0x9f, 0x17, 0x0, 0xA0)
+    rdcas_3 = get_cas_count(0x9f, 0x17, 0x1, 0xA0)
+
+    wrcas_0 = get_cas_count(0x9f, 0x14, 0x0, 0xA8)
+    wrcas_1 = get_cas_count(0x9f, 0x14, 0x1, 0xA8)
+    wrcas_2 = get_cas_count(0x9f, 0x17, 0x0, 0xA8)
+    wrcas_3 = get_cas_count(0x9f, 0x17, 0x1, 0xA8)
+    printd("ㅣ", cpu(), ts, cpu_cycle, retired_instructions, actual_cpu_cycle, uops_loads, uops_stores, rdcas_0, wrcas_0, rdcas_1, wrcas_1, rdcas_2, wrcas_2, rdcas_3, wrcas_3)
+}
+
+function get_and_print_common_info(evt_type, evt_name){
+    printd("ㅣ", evt_type,  evt_name, tid(), pid(), ppid(), execname())
+}
+
+function get_and_print_args(syscall_name){
+    arg1 = long_arg(1)
+    arg2 = long_arg(2)
+    arg3 = long_arg(3)
+    arg4 = long_arg(4)
+    arg5 = long_arg(5)
+    arg6 = long_arg(6)
+
+    if(syscall_name in buf_related_syscalls){
+        buf_ptr = pointer_arg(2)
+        buf_content = get_buf_content(buf_ptr)
+    }else{
+        buf_content .= "NULL"
+    }
+    
+    if(syscall_name in fd_related_syscalls){
+        fd = uint_arg(1)
+        task = task_current()
+        pathname = get_path_name(fd, task)
+    }else if(syscall_name in already_include_pathname_syscalls){
+        arg_num = already_include_pathname_syscalls[syscall_name]
+        arg_ptr = pointer_arg(arg_num)
+        pathname = user_string(arg_ptr, "NaN")
+    }else{
+        pathname .= "NULL"
+    }
+
+    printd("ㅣ", arg1, arg2, arg3, arg4, arg5, arg6, buf_content, pathname)
+}

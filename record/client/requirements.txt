@@ -1,0 +1,15 @@
+requests >= *
+cassandra-driver >= *
+couchdb >= *
+couchbase >= *
+elasticsearch >= *
+happybase >= *
+python-memcached >= *
+pymongo >= *
+mysql-connector-python >= *
+neo4j-driver >= *
+pyorient >= *
+redis >= *
+
+zmq >= *
+numpy >= *

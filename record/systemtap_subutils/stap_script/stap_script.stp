@@ -1,0 +1,121 @@
+#!/usr/bin/env stap
+global target_uid = 128
+
+global TYPE_ENTER=0
+global TYPE_EXIT=1
+global TYPE_NON_RETURN=2
+global TYPE_CPU_ON=3
+global TYPE_CPU_OFF=4
+
+probe begin{
+    system("echo 1 > /tmp/stap_running")
+    system("echo HI STAP")
+}
+
+probe end{
+    system("echo BYE STAP")
+    system("echo 0 > /tmp/stap_running")
+}
+
+
+probe syscall_any {
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_ENTER
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, name)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+probe syscall_any.return{
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_EXIT
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, name)
+
+    print("ㅣ")
+    print(retval)
+
+    print("ㅣ")
+    get_and_print_args(name)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+probe scheduler.cpu_on{
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_CPU_ON
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, "CPU_ON")
+    print("ㅣ")
+    print(idle)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+probe scheduler.cpu_off{
+    if(uid() != target_uid) next;
+    get_and_print_resource()
+    evt_type = TYPE_CPU_OFF
+
+    print("ㅣ")
+    get_and_print_common_info(evt_type, "CPU_OFF")
+    print("ㅣ")
+    print(idle)
+
+    print("ㅣ")
+    get_and_print_resource()
+    println()
+}
+
+function get_and_print_resource(){
+    ts = ktime_get_ns()
+    cpu_cycle = get_cycles()
+    retired_instructions = get_retired_instructions()
+    actual_cpu_cycle = get_actual_cycles()
+    uops_loads = get_uops_loads()
+    uops_stores = get_uops_stores()
+
+    rdcas_0 = get_cas_count(0x9f, 0x14, 0x0, 0xA0)
+    rdcas_1 = get_cas_count(0x9f, 0x14, 0x1, 0xA0)
+    rdcas_2 = get_cas_count(0x9f, 0x17, 0x0, 0xA0)
+    rdcas_3 = get_cas_count(0x9f, 0x17, 0x1, 0xA0)
+
+    wrcas_0 = get_cas_count(0x9f, 0x14, 0x0, 0xA8)
+    wrcas_1 = get_cas_count(0x9f, 0x14, 0x1, 0xA8)
+    wrcas_2 = get_cas_count(0x9f, 0x17, 0x0, 0xA8)
+    wrcas_3 = get_cas_count(0x9f, 0x17, 0x1, 0xA8)
+
+    printd("ㅣ", cpu(), ts, cpu_cycle, retired_instructions, actual_cpu_cycle, uops_loads, uops_stores, rdcas_0, wrcas_0, rdcas_1, wrcas_1, rdcas_2, wrcas_2, rdcas_3, wrcas_3)
+}
+
+function get_and_print_common_info(evt_type, evt_name){
+    printd("ㅣ", evt_type,  evt_name, tid(), pid(), ppid(), execname())
+}
+
+function get_and_print_args(syscall_name){
+    arg1 = long_arg(1)
+    arg2 = long_arg(2)
+    arg3 = long_arg(3)
+    arg4 = long_arg(4)
+    arg5 = long_arg(5)
+    arg6 = long_arg(6)
+
+    buf_content .= "NULL"
+
+    pathname .= "NULL"
+
+    printd("ㅣ", arg1, arg2, arg3, arg4, arg5, arg6, buf_content, pathname)
+}
